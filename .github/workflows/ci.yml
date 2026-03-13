@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Syntax check
+        run: python -m py_compile scripts/alphaxiv_lookup.py
+
+      - name: CLI help check
+        run: python scripts/alphaxiv_lookup.py --help
+
+      - name: Offline normalization smoke test
+        run: |
+          python - <<'PY'
+          import importlib.util
+          spec = importlib.util.spec_from_file_location('alphaxiv_lookup', 'scripts/alphaxiv_lookup.py')
+          mod = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(mod)
+          assert mod.normalize_input('2603.07612')['paper_id'] == '2603.07612'
+          assert mod.normalize_input('https://arxiv.org/abs/2603.07612')['paper_id'] == '2603.07612'
+          assert mod.normalize_input('https://www.alphaxiv.org/overview/2603.07612')['paper_id'] == '2603.07612'
+          print('offline normalization smoke test ok')
+          PY
