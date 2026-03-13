@@ -17,8 +17,12 @@ Prefer alphaXiv first because it often exposes an AI-generated overview that is 
    - Accept alphaXiv URLs like `https://www.alphaxiv.org/overview/2401.12345`
 2. Run the bundled script:
    - The script accepts one or more paper ids / URLs in a single invocation.
-   - Use `--input-file PATH` to read one id / URL per line; ignore blank lines and lines starting with `#`.
+   - Use `--input-file PATH` to add repo-local batch inputs.
+   - Plain-text inputs stay line-based: read one id / URL per line, ignoring blank lines and lines starting with `#`.
+   - CSV/TSV inputs use a header row. Prefer `--column COLUMN_NAME` to select the input column explicitly.
+   - If `--column` is omitted for CSV/TSV, the script only auto-selects an obvious single input column; otherwise it fails and prints the available columns.
    - `python3 scripts/alphaxiv_lookup.py "<paper-or-url>" --format markdown`
+   - `python3 scripts/alphaxiv_lookup.py --input-file papers.csv --column paper_id --format json`
    - Use `--format json` for full structured output.
    - Use `--format json-compact` when you want a smaller machine-friendly payload.
    - Use `--format text` for a clean plain-text brief.

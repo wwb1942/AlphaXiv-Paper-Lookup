@@ -6,6 +6,19 @@ All notable changes to this repository will be documented in this file.
 
 - Ongoing documentation and release polish.
 
+## [v0.5.0] - 2026-03-13
+
+### Added
+
+- `--column COLUMN_NAME` support for reading paper ids / URLs from named columns in `.csv` and `.tsv` input files
+
+### Changed
+
+- plain-text `--input-file` behavior remains line-based and backward compatible
+- structured CSV/TSV inputs now ignore blank rows, comment-only rows, and blank selected cells
+- CSV/TSV files without `--column` now auto-select an input column only when it is unambiguous; otherwise the CLI fails with the available column names
+- README, skill instructions, packaged artifact, and CI smoke coverage now document and verify structured file input handling
+
 ## [v0.4.1] - 2026-03-13
 
 ### Added

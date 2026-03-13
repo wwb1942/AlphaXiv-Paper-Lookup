@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import csv
 import html
 import json
 import re
@@ -85,6 +86,22 @@ RESULT_HINTS = (
     "ablation",
     "experiment",
 )
+
+
+OBVIOUS_INPUT_COLUMN_NAMES = {
+    "paper",
+    "paperid",
+    "paperurl",
+    "arxiv",
+    "arxivid",
+    "arxivurl",
+    "url",
+    "link",
+}
+
+
+class InputFileError(ValueError):
+    pass
 
 
 def fetch(url: str, timeout: int = 25) -> str:
@@ -758,7 +775,110 @@ def render_many(results: List[Dict[str, object]], output_format: str) -> str:
     return ("\n\n" + ("=" * 80) + "\n\n").join(blocks) + "\n"
 
 
-def read_input_file(path: str) -> List[str]:
+def canonicalize_column_name(name: str) -> str:
+    return re.sub(r"[\s_-]+", "", name.strip().lower())
+
+
+def nonempty_row_values(row: List[str]) -> List[str]:
+    return [cell.strip() for cell in row if cell and cell.strip()]
+
+
+def is_blank_row(row: List[str]) -> bool:
+    return not nonempty_row_values(row)
+
+
+def is_comment_only_row(row: List[str]) -> bool:
+    values = nonempty_row_values(row)
+    return len(values) == 1 and values[0].startswith("#")
+
+
+def visible_column_names(columns: List[str]) -> List[str]:
+    return [column for column in columns if column]
+
+
+def obvious_input_column_index(columns: List[str]) -> Optional[int]:
+    indexed = [(idx, column) for idx, column in enumerate(columns) if column]
+    if len(indexed) == 1:
+        return indexed[0][0]
+
+    matches = [
+        (idx, column)
+        for idx, column in indexed
+        if canonicalize_column_name(column) in OBVIOUS_INPUT_COLUMN_NAMES
+    ]
+    if len(matches) == 1:
+        return matches[0][0]
+    return None
+
+
+def resolve_structured_input_column(path: str, columns: List[str], column_name: Optional[str]) -> int:
+    indexed = [(idx, column) for idx, column in enumerate(columns) if column]
+    if not indexed:
+        raise InputFileError(f"structured input file '{path}' has an empty header row")
+
+    normalized_to_indexes: Dict[str, List[int]] = {}
+    for idx, column in indexed:
+        normalized_to_indexes.setdefault(canonicalize_column_name(column), []).append(idx)
+
+    available = ", ".join(visible_column_names(columns))
+
+    if column_name:
+        requested = canonicalize_column_name(column_name)
+        matches = normalized_to_indexes.get(requested, [])
+        if not matches:
+            raise InputFileError(
+                f"structured input file '{path}' does not contain column '{column_name}'; available columns: {available}"
+            )
+        if len(matches) > 1:
+            raise InputFileError(
+                f"structured input file '{path}' has multiple columns matching '{column_name}'; available columns: {available}"
+            )
+        return matches[0]
+
+    obvious_index = obvious_input_column_index(columns)
+    if obvious_index is not None:
+        return obvious_index
+
+    raise InputFileError(
+        f"structured input file '{path}' requires --column COLUMN_NAME; available columns: {available}"
+    )
+
+
+def read_structured_input_file(path: str, delimiter: str, column_name: Optional[str]) -> List[str]:
+    papers: List[str] = []
+    with open(path, "r", encoding="utf-8-sig", newline="") as handle:
+        reader = csv.reader(handle, delimiter=delimiter)
+
+        columns: Optional[List[str]] = None
+        for row in reader:
+            if is_blank_row(row) or is_comment_only_row(row):
+                continue
+            columns = [cell.strip() for cell in row]
+            break
+
+        if columns is None:
+            return papers
+
+        column_index = resolve_structured_input_column(path, columns, column_name)
+
+        for row in reader:
+            if is_blank_row(row) or is_comment_only_row(row):
+                continue
+            value = row[column_index].strip() if column_index < len(row) else ""
+            if not value or value.startswith("#"):
+                continue
+            papers.append(value)
+
+    return papers
+
+
+def read_input_file(path: str, column_name: Optional[str] = None) -> List[str]:
+    lowered_path = path.lower()
+    if lowered_path.endswith(".csv"):
+        return read_structured_input_file(path, ",", column_name)
+    if lowered_path.endswith(".tsv"):
+        return read_structured_input_file(path, "\t", column_name)
+
     papers: List[str] = []
     with open(path, "r", encoding="utf-8") as handle:
         for raw_line in handle:
@@ -769,7 +889,7 @@ def read_input_file(path: str) -> List[str]:
     return papers
 
 
-def expand_cli_inputs(argv: List[str]) -> List[str]:
+def expand_cli_inputs(argv: List[str], input_column: Optional[str] = None) -> List[str]:
     papers: List[str] = []
     index = 0
 
@@ -784,20 +904,20 @@ def expand_cli_inputs(argv: List[str]) -> List[str]:
             index += 1
             if index >= len(argv):
                 break
-            papers.extend(read_input_file(argv[index]))
+            papers.extend(read_input_file(argv[index], input_column))
             index += 1
             continue
 
         if token.startswith("--input-file="):
-            papers.extend(read_input_file(token.split("=", 1)[1]))
+            papers.extend(read_input_file(token.split("=", 1)[1], input_column))
             index += 1
             continue
 
-        if token in {"--format", "--timeout"}:
+        if token in {"--column", "--format", "--timeout"}:
             index += 2
             continue
 
-        if token.startswith("--format=") or token.startswith("--timeout="):
+        if token.startswith("--column=") or token.startswith("--format=") or token.startswith("--timeout="):
             index += 1
             continue
 
@@ -921,17 +1041,23 @@ def main(argv: Optional[List[str]] = None) -> int:
         action="append",
         default=[],
         metavar="PATH",
-        help="Read one paper id or URL per line from PATH. Blank lines and lines starting with # are ignored.",
+        help="Read paper ids or URLs from PATH. Text files stay line-based; CSV/TSV files support header-based column selection.",
+    )
+    parser.add_argument(
+        "--column",
+        help="For CSV/TSV --input-file values, read paper ids or URLs from COLUMN_NAME. If omitted, an obvious structured column is used only when it can be chosen unambiguously.",
     )
     parser.add_argument("--format", choices=["json", "json-compact", "markdown", "text", "brief", "brief-zh"], default="json")
     parser.add_argument("--timeout", type=int, default=25, help="HTTP timeout in seconds (default: 25)")
     args = parser.parse_args(argv)
 
     try:
-        papers = expand_cli_inputs(argv)
-    except OSError as err:
+        papers = expand_cli_inputs(argv, input_column=args.column)
+    except (InputFileError, OSError) as err:
         path = err.filename or "<unknown>"
-        parser.error(f"unable to read input file '{path}': {err.strerror or err}")
+        if isinstance(err, OSError):
+            parser.error(f"unable to read input file '{path}': {err.strerror or err}")
+        parser.error(str(err))
 
     if not papers:
         parser.error("provide at least one paper id / URL or --input-file PATH")

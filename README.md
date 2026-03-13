@@ -122,13 +122,46 @@ EOF
 python3 scripts/alphaxiv_lookup.py --input-file papers.txt --format brief
 ```
 
+### Batch lookup from CSV with an explicit column
+
+```bash
+cat > papers.csv <<'EOF'
+paper_id,title
+2603.07612,Example Paper
+# comment row,
+,Missing id
+https://arxiv.org/abs/2401.12345,Another Paper
+EOF
+python3 scripts/alphaxiv_lookup.py --input-file papers.csv --column paper_id --format brief
+```
+
+### Batch lookup from TSV with an obvious default column
+
+```bash
+cat > papers.tsv <<'EOF'
+paper_id	title
+2603.07612	Example Paper
+2401.12345	Another Paper
+EOF
+python3 scripts/alphaxiv_lookup.py --input-file papers.tsv --format json-compact
+```
+
 ### Combine `--input-file` with direct arguments
 
 ```bash
 python3 scripts/alphaxiv_lookup.py --input-file papers.txt 'https://www.alphaxiv.org/overview/2501.01234' --format json-compact
 ```
 
-`--input-file PATH` reads one paper id or URL per line, ignores blank lines, ignores lines starting with `#`, and participates in the same single-item vs batch rendering rules as direct positional arguments.
+`--input-file PATH` keeps `.txt` and other non-structured files line-based: one paper id or URL per line, with blank lines and lines starting with `#` ignored.
+
+For `.csv` and `.tsv` files, the CLI reads a header row and then pulls values from a named column:
+
+- use `--column COLUMN_NAME` to select the input column explicitly
+- blank rows, comment-only rows, and rows where the selected column is blank are ignored
+- if `--column` is omitted, the CLI only auto-selects a column when it is unambiguous (for example the file has exactly one column, or exactly one clearly named input column such as `paper_id` or `url`)
+- otherwise it fails clearly and prints the available column names
+
+Structured-file inputs participate in the same single-item vs batch rendering rules as direct positional arguments, and `--input-file` can still be combined with direct ids / URLs in the same command.
 
 ## Output fields
 
@@ -194,6 +227,7 @@ Structure:
 - `--format brief` / `--format brief-zh` prefer the best retrieved summary, but can still produce a useful user-facing brief from the arXiv abstract alone
 - Batch mode accepts multiple ids / URLs in one run and keeps single-item behavior backward compatible
 - `--input-file PATH` can be used more than once and can be combined with direct ids / URLs in the same command
+- `.csv` and `.tsv` inputs support header-based extraction through `--column COLUMN_NAME`, while plain text files keep the existing line-by-line behavior unchanged
 - AlphaXiv is treated as a shortcut, not a replacement for reading the full paper when exact details matter
 
 ## License
