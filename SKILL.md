@@ -16,12 +16,15 @@ Prefer alphaXiv first because it often exposes an AI-generated overview that is 
    - Accept alphaXiv URLs like `https://www.alphaxiv.org/overview/2401.12345`
 2. Run the bundled script:
    - `python3 scripts/alphaxiv_lookup.py "<paper-or-url>" --format markdown`
-   - Use `--format json` when you want structured fields for downstream processing.
+   - Use `--format json` for full structured output.
+   - Use `--format json-compact` when you want a smaller machine-friendly payload.
+   - Use `--format text` for a clean plain-text brief.
 3. Read the returned fields in this priority order:
+   - `best_summary`
    - `alphaxiv_report`
    - `alphaxiv_description`
    - `arxiv_abstract`
-   - `source_used`, `alphaxiv_status`, `arxiv_status`, `notes`
+   - `source_used`, `summary_source`, `status`, `alphaxiv_status`, `arxiv_status`, `warnings`, `errors`
 4. Write the answer in a fixed structure:
    - Paper title
    - What problem it solves
@@ -52,7 +55,7 @@ Use this template unless the user requests a different style:
 ## Fallback rules
 
 - If alphaXiv returns only a thin description, combine it with the arXiv abstract instead of pretending the overview is complete.
-- If alphaXiv fetch fails or appears rate-limited, say so briefly and fall back to arXiv.
+- If alphaXiv fetch fails, classify it as precisely as possible (`rate_limited`, `not_found`, `upstream_error`, or generic failure) and fall back to arXiv.
 - If the user asks for exact equations, implementation details, or appendix-level nuance, warn that alphaXiv is only a shortcut and the PDF/source paper should still be checked.
 - Do not invent missing benchmark numbers. If a metric is absent, say it is not surfaced in the retrieved overview.
 

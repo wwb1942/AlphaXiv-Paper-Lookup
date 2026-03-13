@@ -34,5 +34,15 @@ jobs:
           assert mod.normalize_input('2603.07612')['paper_id'] == '2603.07612'
           assert mod.normalize_input('https://arxiv.org/abs/2603.07612')['paper_id'] == '2603.07612'
           assert mod.normalize_input('https://www.alphaxiv.org/overview/2603.07612')['paper_id'] == '2603.07612'
+          cleaned = mod.clean_alpha_description('View recent discussion. Abstract: hello world')
+          assert cleaned == 'hello world'
+          compact = mod.compact_payload({
+              'paper_id': 'x', 'title': 't', 'authors': 'a', 'status': 'ok',
+              'source_used': 'arxiv', 'summary_source': 'arxiv_abstract', 'best_summary': 's',
+              'alphaxiv_status': 'thin', 'arxiv_status': 'available',
+              'resolved_alphaxiv_url': 'u1', 'resolved_arxiv_url': 'u2',
+              'warnings': ['w'], 'errors': []
+          })
+          assert compact['summary_source'] == 'arxiv_abstract'
           print('offline normalization smoke test ok')
           PY

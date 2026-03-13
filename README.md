@@ -67,6 +67,24 @@ python3 scripts/alphaxiv_lookup.py 'https://arxiv.org/abs/2603.07612' --format j
 python3 scripts/alphaxiv_lookup.py 'https://www.alphaxiv.org/overview/2603.07612' --format markdown
 ```
 
+### Compact JSON for downstream automation
+
+```bash
+python3 scripts/alphaxiv_lookup.py '2603.07612' --format json-compact
+```
+
+### Plain-text brief
+
+```bash
+python3 scripts/alphaxiv_lookup.py '2603.07612' --format text
+```
+
+### Increase timeout for slow upstreams
+
+```bash
+python3 scripts/alphaxiv_lookup.py '2603.07612' --format json --timeout 40
+```
+
 ### Adjust timeout for flaky upstreams
 
 ```bash
@@ -105,8 +123,8 @@ The JSON output may include:
 
 - Repository display name is `AlphaXiv-Paper-Lookup`
 - Technical skill slug remains `alphaxiv-paper-lookup`
-- If alphaXiv fetch fails or appears rate-limited, the workflow falls back to arXiv
-- The JSON output now exposes `source_used`, `alphaxiv_status`, `arxiv_status`, and `notes` for easier downstream handling
+- If alphaXiv fetch fails, is rate-limited, or has only a thin overview, the workflow falls back to arXiv as needed
+- The JSON output now exposes `status`, `source_used`, `summary_source`, `best_summary`, `alphaxiv_status`, `arxiv_status`, `warnings`, and `errors` for easier downstream handling
 - alphaXiv is treated as a shortcut, not a replacement for reading the full paper when exact details matter
 
 ## License

@@ -6,6 +6,24 @@ All notable changes to this repository will be documented in this file.
 
 - Ongoing documentation and release polish.
 
+## [v0.3.0] - 2026-03-13
+
+### Added
+
+- `--format text` for a plain-text brief
+- `--format json-compact` for smaller machine-friendly payloads
+- `status`, `summary_source`, `best_summary`, `warnings`, and `errors` output fields
+
+### Changed
+
+- prefer a cleaner arXiv abstract as `best_summary` when alphaXiv is only thin
+
+### Fixed
+
+- more precise alphaXiv status classification (`thin`, `no_report`, `rate_limited`, `not_found`, `upstream_error`, `http_error`, `network_error`)
+- deduplicated candidate URL errors and cleaned alphaXiv overview prefixes
+- kept HTML fragments out of summary fields
+
 ## [v0.2.0] - 2026-03-13
 
 ### Added
