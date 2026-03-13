@@ -44,5 +44,45 @@ jobs:
               'warnings': ['w'], 'errors': []
           })
           assert compact['summary_source'] == 'arxiv_abstract'
+          brief = mod.as_brief({
+              'paper_id': 'x',
+              'title': 'Test Paper',
+              'status': 'ok',
+              'source_used': 'alphaxiv+arxiv',
+              'summary_source': 'alphaxiv_report',
+              'best_summary': 'This paper introduces a retrieval-augmented planner for long-horizon tasks. It addresses brittle multi-step planning in dynamic environments. The method combines a planner, a verifier, and a memory cache. It uses iterative self-correction with retrieved demonstrations.',
+              'alphaxiv_status': 'available',
+              'arxiv_status': 'available',
+              'resolved_alphaxiv_url': 'u1',
+              'resolved_arxiv_url': 'u2',
+              'alphaxiv_report': 'This paper introduces a retrieval-augmented planner for long-horizon tasks. It addresses brittle multi-step planning in dynamic environments. The method combines a planner, a verifier, and a memory cache. It uses iterative self-correction with retrieved demonstrations.',
+              'alphaxiv_description': '',
+              'arxiv_abstract': 'This paper introduces a retrieval-augmented planner for long-horizon tasks.',
+              'warnings': [],
+              'errors': [],
+          })
+          assert 'Paper: Test Paper (x)' in brief
+          assert 'Problem solved:' in brief
+          assert 'Core method:' in brief
+          assert 'Source: alphaXiv report. Confidence: higher.' in brief
+          brief_fallback = mod.as_brief({
+              'paper_id': 'y',
+              'title': 'Fallback Paper',
+              'status': 'ok',
+              'source_used': 'arxiv',
+              'summary_source': 'arxiv_abstract',
+              'best_summary': 'We study efficient adaptation for vision models. The problem is updating large models under tight compute budgets. Our method trains a low-rank adapter and freezes the backbone.',
+              'alphaxiv_status': 'thin',
+              'arxiv_status': 'available',
+              'resolved_alphaxiv_url': 'u1',
+              'resolved_arxiv_url': 'u2',
+              'alphaxiv_report': '',
+              'alphaxiv_description': 'Short overview only.',
+              'arxiv_abstract': 'We study efficient adaptation for vision models. The problem is updating large models under tight compute budgets. Our method trains a low-rank adapter and freezes the backbone.',
+              'warnings': ['AlphaXiv page fetched, but only a short overview was available.'],
+              'errors': [],
+          })
+          assert 'Source: arXiv abstract fallback. Confidence: basic (alphaXiv: thin).' in brief_fallback
+          assert 'Worth reading? Abstract-first; alphaXiv was thin, so this brief relies on arXiv.' in brief_fallback
           print('offline normalization smoke test ok')
           PY

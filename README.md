@@ -45,7 +45,7 @@ In those cases, use this skill as a fast first-pass filter, then inspect the ori
 - fetch alphaXiv overview pages when available
 - extract embedded overview / report fields
 - fall back to the arXiv abstract when alphaXiv is thin or unavailable
-- return structured output in JSON or Markdown
+- return structured output in JSON, Markdown, verbose text, or a compact user-facing brief
 
 ## Quick examples
 
@@ -73,19 +73,19 @@ python3 scripts/alphaxiv_lookup.py 'https://www.alphaxiv.org/overview/2603.07612
 python3 scripts/alphaxiv_lookup.py '2603.07612' --format json-compact
 ```
 
-### Plain-text brief
+### Plain-text detail view
 
 ```bash
 python3 scripts/alphaxiv_lookup.py '2603.07612' --format text
 ```
 
-### Increase timeout for slow upstreams
+### Compact user-facing brief
 
 ```bash
-python3 scripts/alphaxiv_lookup.py '2603.07612' --format json --timeout 40
+python3 scripts/alphaxiv_lookup.py '2603.07612' --format brief
 ```
 
-### Adjust timeout for flaky upstreams
+### Increase timeout for slow upstreams
 
 ```bash
 python3 scripts/alphaxiv_lookup.py '2603.07612' --format json --timeout 40
@@ -109,6 +109,19 @@ The JSON output may include:
 - `arxiv_abstract`
 - `notes`
 
+## `--format brief`
+
+`--format brief` emits a deterministic, compact paper brief meant to be pasted directly to a user. It uses only retrieved fields and keeps working when alphaXiv is thin or unavailable by leaning on the arXiv fallback.
+
+Structure:
+
+- paper title + id
+- one-line takeaway
+- problem solved
+- core method
+- worth reading verdict
+- source / confidence hint
+
 ## Repository layout
 
 - `SKILL.md` — skill instructions and trigger guidance
@@ -125,6 +138,7 @@ The JSON output may include:
 - Technical skill slug remains `alphaxiv-paper-lookup`
 - If alphaXiv fetch fails, is rate-limited, or has only a thin overview, the workflow falls back to arXiv as needed
 - The JSON output now exposes `status`, `source_used`, `summary_source`, `best_summary`, `alphaxiv_status`, `arxiv_status`, `warnings`, and `errors` for easier downstream handling
+- `--format brief` prefers the best retrieved summary, but can still produce a useful user-facing brief from the arXiv abstract alone
 - AlphaXiv is treated as a shortcut, not a replacement for reading the full paper when exact details matter
 
 ## License

@@ -35,6 +35,58 @@ SUMMARY_SOURCE_VALUES = {
 }
 
 
+PROBLEM_HINTS = (
+    "problem",
+    "challenge",
+    "task",
+    "goal",
+    "aim",
+    "focus",
+    "gap",
+    "bottleneck",
+    "limitation",
+    "existing",
+    "address",
+    "solve",
+)
+
+
+METHOD_HINTS = (
+    "we propose",
+    "we present",
+    "we introduce",
+    "our method",
+    "our approach",
+    "framework",
+    "method",
+    "approach",
+    "algorithm",
+    "model",
+    "system",
+    "pipeline",
+    "architecture",
+    "uses",
+    "combines",
+    "consists of",
+    "built on",
+    "trained",
+)
+
+
+RESULT_HINTS = (
+    "results",
+    "show",
+    "demonstrate",
+    "outperform",
+    "improve",
+    "achieve",
+    "benchmark",
+    "evaluation",
+    "ablation",
+    "experiment",
+)
+
+
 def fetch(url: str, timeout: int = 25) -> str:
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -76,6 +128,178 @@ def unique_preserve(items: List[str]) -> List[str]:
             seen.add(item)
             result.append(item)
     return result
+
+
+def sentence_key(text: str) -> str:
+    return re.sub(r"\W+", " ", text.lower()).strip()
+
+
+def sentence_candidates(text: Optional[str]) -> List[str]:
+    cleaned = clean_text(text)
+    if not cleaned:
+        return []
+    cleaned = re.sub(r"[•·▪◦]", "\n", cleaned)
+    cleaned = re.sub(r"\n{2,}", "\n", cleaned)
+    candidates: List[str] = []
+    for block in cleaned.split("\n"):
+        block = block.strip(" -*\t")
+        if not block:
+            continue
+        parts = re.split(r"(?<=[.!?])\s+|;\s+(?=[A-Z0-9])", block)
+        for part in parts:
+            part = clean_text(part)
+            part = re.sub(r"^(abstract|summary|overview)\s*:\s*", "", part, flags=re.I)
+            part = part.strip(" -*\t")
+            if part:
+                candidates.append(part)
+    return unique_preserve(candidates)
+
+
+def truncate_text(text: str, max_chars: int) -> str:
+    text = clean_text(text)
+    text = re.sub(r"\s*\n\s*", " ", text).strip()
+    if len(text) <= max_chars:
+        return text
+    clipped = text[: max_chars + 1].rsplit(" ", 1)[0].rstrip(" ,;:")
+    return (clipped or text[:max_chars].rstrip(" ,;:")) + "…"
+
+
+def pick_matching_sentence(sentences: List[str], used: set, hints: Tuple[str, ...]) -> str:
+    for sentence in sentences:
+        key = sentence_key(sentence)
+        if key in used:
+            continue
+        lowered = sentence.lower()
+        if any(hint in lowered for hint in hints):
+            used.add(key)
+            return sentence
+    return ""
+
+
+def pick_unused_sentence(sentences: List[str], used: set, skip_hints: Tuple[str, ...] = ()) -> str:
+    for sentence in sentences:
+        key = sentence_key(sentence)
+        if key in used:
+            continue
+        lowered = sentence.lower()
+        if skip_hints and any(hint in lowered for hint in skip_hints):
+            continue
+        used.add(key)
+        return sentence
+    return ""
+
+
+def brief_sentence_pool(result: Dict[str, object]) -> List[str]:
+    texts = [
+        str(result.get("best_summary", "")),
+        str(result.get("arxiv_abstract", "")),
+        str(result.get("alphaxiv_report", "")),
+        str(result.get("alphaxiv_description", "")),
+    ]
+    sentences: List[str] = []
+    seen = set()
+    for text in texts:
+        for sentence in sentence_candidates(text):
+            key = sentence_key(sentence)
+            if key and key not in seen:
+                seen.add(key)
+                sentences.append(sentence)
+    return sentences
+
+
+def brief_takeaway(result: Dict[str, object], sentences: List[str]) -> str:
+    if sentences:
+        return truncate_text(sentences[0], 180)
+    if result.get("title"):
+        return "Only title-level metadata was retrieved; no summary text was available."
+    return "No usable paper summary was retrieved."
+
+
+def brief_problem(result: Dict[str, object], sentences: List[str], used: set) -> str:
+    sentence = pick_matching_sentence(sentences, used, PROBLEM_HINTS) or pick_unused_sentence(sentences, used)
+    if sentence:
+        return truncate_text(sentence, 200)
+    if result.get("best_summary"):
+        return truncate_text(str(result.get("best_summary", "")), 200)
+    return "Not clearly stated in the retrieved source text."
+
+
+def brief_method_points(sentences: List[str], used: set) -> List[str]:
+    selected: List[str] = []
+    selected_keys = set()
+
+    def add_sentence(sentence: str) -> None:
+        key = sentence_key(sentence)
+        if not sentence or key in selected_keys:
+            return
+        selected.append(truncate_text(sentence, 160))
+        selected_keys.add(key)
+
+    for sentence in sentences:
+        if len(selected) >= 4:
+            break
+        key = sentence_key(sentence)
+        if key in used:
+            continue
+        lowered = sentence.lower()
+        if any(hint in lowered for hint in METHOD_HINTS):
+            used.add(key)
+            add_sentence(sentence)
+
+    for sentence in sentences:
+        if len(selected) >= 2:
+            break
+        key = sentence_key(sentence)
+        if key in used:
+            continue
+        lowered = sentence.lower()
+        if any(hint in lowered for hint in RESULT_HINTS):
+            continue
+        used.add(key)
+        add_sentence(sentence)
+
+    for sentence in sentences:
+        if len(selected) >= 2:
+            break
+        key = sentence_key(sentence)
+        if key in used:
+            continue
+        used.add(key)
+        add_sentence(sentence)
+
+    return selected
+
+
+def brief_reading_verdict(result: Dict[str, object]) -> str:
+    summary_source = str(result.get("summary_source", "none"))
+    alphaxiv_status = str(result.get("alphaxiv_status", "unavailable"))
+    if summary_source == "alphaxiv_report":
+        return "Yes for fast triage; a detailed alphaXiv report is available."
+    if summary_source == "alphaxiv_description" and result.get("arxiv_abstract"):
+        return "Maybe; alphaXiv is thin, but the arXiv abstract fills in the basics."
+    if summary_source == "arxiv_abstract":
+        if alphaxiv_status in {"thin", "no_report"}:
+            return "Abstract-first; alphaXiv was thin, so this brief relies on arXiv."
+        return "Abstract-first; this brief relies on the arXiv fallback."
+    if result.get("best_summary"):
+        return "Maybe; there is enough text here for a quick first pass."
+    return "Hard to judge; only limited metadata was retrieved."
+
+
+def brief_source_line(result: Dict[str, object]) -> str:
+    summary_source = str(result.get("summary_source", "none"))
+    alphaxiv_status = str(result.get("alphaxiv_status", "unavailable"))
+    arxiv_status = str(result.get("arxiv_status", "unknown"))
+
+    if summary_source == "alphaxiv_report":
+        return "Source: alphaXiv report. Confidence: higher."
+    if summary_source == "alphaxiv_description":
+        if arxiv_status == "available":
+            return f"Source: alphaXiv overview + arXiv abstract cross-check. Confidence: medium (alphaXiv: {alphaxiv_status})."
+        return f"Source: alphaXiv overview only. Confidence: medium (alphaXiv: {alphaxiv_status})."
+    if summary_source == "arxiv_abstract":
+        return f"Source: arXiv abstract fallback. Confidence: basic (alphaXiv: {alphaxiv_status})."
+    return "Source: metadata only. Confidence: low."
 
 
 def extract_meta(html_text: str, name: str) -> str:
@@ -385,6 +609,36 @@ def as_text(result: Dict[str, object]) -> str:
     return "\n".join(lines).strip() + "\n"
 
 
+def as_brief(result: Dict[str, object]) -> str:
+    lines = []
+    title = str(result.get("title") or result.get("paper_id") or "Unknown paper")
+    paper_id = str(result.get("paper_id") or "unknown")
+    sentences = brief_sentence_pool(result)
+    takeaway = brief_takeaway(result, sentences)
+
+    used = set()
+    if sentences:
+        used.add(sentence_key(sentences[0]))
+
+    problem = brief_problem(result, sentences, used)
+    method_points = brief_method_points(sentences, used)
+
+    lines.append(f"Paper: {title} ({paper_id})")
+    lines.append(f"Takeaway: {takeaway}")
+    lines.append(f"Problem solved: {problem}")
+    if len(method_points) >= 2:
+        lines.append("Core method:")
+        for point in method_points[:4]:
+            lines.append(f"- {point}")
+    elif method_points:
+        lines.append(f"Core method: {method_points[0]}")
+    else:
+        lines.append("Core method: Method details are not surfaced in the retrieved summary.")
+    lines.append(f"Worth reading? {brief_reading_verdict(result)}")
+    lines.append(brief_source_line(result))
+    return "\n".join(lines).strip() + "\n"
+
+
 def compact_payload(result: Dict[str, object]) -> Dict[str, object]:
     return {
         "paper_id": result.get("paper_id"),
@@ -505,7 +759,7 @@ def lookup(raw: str, timeout: int = 25) -> Dict[str, object]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Look up an arXiv paper via alphaXiv and extract structured overview fields.")
     parser.add_argument("paper", help="arXiv id, arXiv URL, or alphaXiv URL")
-    parser.add_argument("--format", choices=["json", "json-compact", "markdown", "text"], default="json")
+    parser.add_argument("--format", choices=["json", "json-compact", "markdown", "text", "brief"], default="json")
     parser.add_argument("--timeout", type=int, default=25, help="HTTP timeout in seconds (default: 25)")
     args = parser.parse_args()
 
@@ -527,6 +781,8 @@ def main() -> int:
         sys.stdout.write(as_markdown(result))
     elif args.format == "text":
         sys.stdout.write(as_text(result))
+    elif args.format == "brief":
+        sys.stdout.write(as_brief(result))
     elif args.format == "json-compact":
         print(json.dumps(compact_payload(result), ensure_ascii=False, separators=(",", ":")))
     else:

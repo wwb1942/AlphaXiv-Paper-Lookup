@@ -6,6 +6,16 @@ All notable changes to this repository will be documented in this file.
 
 - Ongoing documentation and release polish.
 
+## [v0.3.1] - 2026-03-13
+
+### Added
+
+- `--format brief` for a deterministic, compact, user-facing paper brief
+
+### Changed
+
+- documented the new brief mode and its arXiv-first fallback behavior when alphaXiv is thin or unavailable
+
 ## [v0.3.0] - 2026-03-13
 
 ### Added
