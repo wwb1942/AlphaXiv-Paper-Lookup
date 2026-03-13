@@ -125,7 +125,7 @@ The JSON output may include:
 - Technical skill slug remains `alphaxiv-paper-lookup`
 - If alphaXiv fetch fails, is rate-limited, or has only a thin overview, the workflow falls back to arXiv as needed
 - The JSON output now exposes `status`, `source_used`, `summary_source`, `best_summary`, `alphaxiv_status`, `arxiv_status`, `warnings`, and `errors` for easier downstream handling
-- alphaXiv is treated as a shortcut, not a replacement for reading the full paper when exact details matter
+- AlphaXiv is treated as a shortcut, not a replacement for reading the full paper when exact details matter
 
 ## License
 
