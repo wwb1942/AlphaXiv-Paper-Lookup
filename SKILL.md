@@ -20,6 +20,7 @@ Prefer alphaXiv first because it often exposes an AI-generated overview that is 
    - Use `--format json-compact` when you want a smaller machine-friendly payload.
    - Use `--format text` for a clean plain-text brief.
    - Use `--format brief` for a concise user-ready brief.
+   - Use `--format brief-zh` for the same structure with Chinese labels.
 3. Read the returned fields in this priority order:
    - `best_summary`
    - `alphaxiv_report`

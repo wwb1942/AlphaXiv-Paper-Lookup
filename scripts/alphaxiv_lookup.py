@@ -639,6 +639,68 @@ def as_brief(result: Dict[str, object]) -> str:
     return "\n".join(lines).strip() + "\n"
 
 
+def brief_reading_verdict_zh(result: Dict[str, object]) -> str:
+    summary_source = str(result.get("summary_source", "none"))
+    alphaxiv_status = str(result.get("alphaxiv_status", "unavailable"))
+    if summary_source == "alphaxiv_report":
+        return "值得先读；alphaXiv 有较完整的长报告。"
+    if summary_source == "alphaxiv_description" and result.get("arxiv_abstract"):
+        return "值得快速略读；alphaXiv 偏薄，但 arXiv 摘要补足了基础信息。"
+    if summary_source == "arxiv_abstract":
+        if alphaxiv_status in {"thin", "no_report"}:
+            return "先看摘要即可；alphaXiv 信息偏薄，这版主要依赖 arXiv。"
+        return "先看摘要即可；这版主要依赖 arXiv fallback。"
+    if result.get("best_summary"):
+        return "可以先快速过一遍；现有文本足够做首轮判断。"
+    return "暂时不好判断；目前只拿到了有限元数据。"
+
+
+def brief_source_line_zh(result: Dict[str, object]) -> str:
+    summary_source = str(result.get("summary_source", "none"))
+    alphaxiv_status = str(result.get("alphaxiv_status", "unavailable"))
+    arxiv_status = str(result.get("arxiv_status", "unknown"))
+
+    if summary_source == "alphaxiv_report":
+        return "来源：alphaXiv 长报告。可信度：较高。"
+    if summary_source == "alphaxiv_description":
+        if arxiv_status == "available":
+            return f"来源：alphaXiv 概览 + arXiv 摘要交叉补充。可信度：中等（alphaXiv: {alphaxiv_status}）。"
+        return f"来源：alphaXiv 概览。可信度：中等（alphaXiv: {alphaxiv_status}）。"
+    if summary_source == "arxiv_abstract":
+        return f"来源：arXiv 摘要 fallback。可信度：基础（alphaXiv: {alphaxiv_status}）。"
+    return "来源：仅元数据。可信度：较低。"
+
+
+def as_brief_zh(result: Dict[str, object]) -> str:
+    lines = []
+    title = str(result.get("title") or result.get("paper_id") or "未知论文")
+    paper_id = str(result.get("paper_id") or "unknown")
+    sentences = brief_sentence_pool(result)
+    takeaway = brief_takeaway(result, sentences)
+
+    used = set()
+    if sentences:
+        used.add(sentence_key(sentences[0]))
+
+    problem = brief_problem(result, sentences, used)
+    method_points = brief_method_points(sentences, used)
+
+    lines.append(f"论文：{title}（{paper_id}）")
+    lines.append(f"一句话结论：{takeaway}")
+    lines.append(f"解决什么问题：{problem}")
+    if len(method_points) >= 2:
+        lines.append("核心方法：")
+        for point in method_points[:4]:
+            lines.append(f"- {point}")
+    elif method_points:
+        lines.append(f"核心方法：{method_points[0]}")
+    else:
+        lines.append("核心方法：当前检索到的摘要里没有足够的方法细节。")
+    lines.append(f"值不值得读：{brief_reading_verdict_zh(result)}")
+    lines.append(brief_source_line_zh(result))
+    return "\n".join(lines).strip() + "\n"
+
+
 def compact_payload(result: Dict[str, object]) -> Dict[str, object]:
     return {
         "paper_id": result.get("paper_id"),
@@ -759,7 +821,7 @@ def lookup(raw: str, timeout: int = 25) -> Dict[str, object]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Look up an arXiv paper via alphaXiv and extract structured overview fields.")
     parser.add_argument("paper", help="arXiv id, arXiv URL, or alphaXiv URL")
-    parser.add_argument("--format", choices=["json", "json-compact", "markdown", "text", "brief"], default="json")
+    parser.add_argument("--format", choices=["json", "json-compact", "markdown", "text", "brief", "brief-zh"], default="json")
     parser.add_argument("--timeout", type=int, default=25, help="HTTP timeout in seconds (default: 25)")
     args = parser.parse_args()
 
@@ -783,6 +845,8 @@ def main() -> int:
         sys.stdout.write(as_text(result))
     elif args.format == "brief":
         sys.stdout.write(as_brief(result))
+    elif args.format == "brief-zh":
+        sys.stdout.write(as_brief_zh(result))
     elif args.format == "json-compact":
         print(json.dumps(compact_payload(result), ensure_ascii=False, separators=(",", ":")))
     else:

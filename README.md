@@ -85,6 +85,12 @@ python3 scripts/alphaxiv_lookup.py '2603.07612' --format text
 python3 scripts/alphaxiv_lookup.py '2603.07612' --format brief
 ```
 
+### 中文速读 brief
+
+```bash
+python3 scripts/alphaxiv_lookup.py '2603.07612' --format brief-zh
+```
+
 ### Increase timeout for slow upstreams
 
 ```bash
@@ -109,9 +115,9 @@ The JSON output may include:
 - `arxiv_abstract`
 - `notes`
 
-## `--format brief`
+## `--format brief` / `--format brief-zh`
 
-`--format brief` emits a deterministic, compact paper brief meant to be pasted directly to a user. It uses only retrieved fields and keeps working when alphaXiv is thin or unavailable by leaning on the arXiv fallback.
+`--format brief` emits a deterministic, compact paper brief meant to be pasted directly to a user. `--format brief-zh` uses the same retrieved evidence and structure, but renders the labels in Chinese. Both modes keep working when alphaXiv is thin or unavailable by leaning on the arXiv fallback.
 
 Structure:
 
@@ -138,7 +144,7 @@ Structure:
 - Technical skill slug remains `alphaxiv-paper-lookup`
 - If alphaXiv fetch fails, is rate-limited, or has only a thin overview, the workflow falls back to arXiv as needed
 - The JSON output now exposes `status`, `source_used`, `summary_source`, `best_summary`, `alphaxiv_status`, `arxiv_status`, `warnings`, and `errors` for easier downstream handling
-- `--format brief` prefers the best retrieved summary, but can still produce a useful user-facing brief from the arXiv abstract alone
+- `--format brief` / `--format brief-zh` prefer the best retrieved summary, but can still produce a useful user-facing brief from the arXiv abstract alone
 - AlphaXiv is treated as a shortcut, not a replacement for reading the full paper when exact details matter
 
 ## License

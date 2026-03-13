@@ -65,6 +65,28 @@ jobs:
           assert 'Problem solved:' in brief
           assert 'Core method:' in brief
           assert 'Source: alphaXiv report. Confidence: higher.' in brief
+          brief_zh = mod.as_brief_zh({
+              'paper_id': 'z',
+              'title': '测试论文',
+              'status': 'ok',
+              'source_used': 'arxiv',
+              'summary_source': 'arxiv_abstract',
+              'best_summary': 'We study efficient adaptation for vision models. The problem is updating large models under tight compute budgets. Our method trains a low-rank adapter and freezes the backbone.',
+              'alphaxiv_status': 'thin',
+              'arxiv_status': 'available',
+              'resolved_alphaxiv_url': 'u1',
+              'resolved_arxiv_url': 'u2',
+              'alphaxiv_report': '',
+              'alphaxiv_description': '',
+              'arxiv_abstract': 'We study efficient adaptation for vision models. The problem is updating large models under tight compute budgets. Our method trains a low-rank adapter and freezes the backbone.',
+              'warnings': [],
+              'errors': [],
+          })
+          assert '论文：测试论文（z）' in brief_zh
+          assert '一句话结论：' in brief_zh
+          assert '解决什么问题：' in brief_zh
+          assert '值不值得读：' in brief_zh
+          assert '来源：arXiv 摘要 fallback。可信度：基础（alphaXiv: thin）。' in brief_zh
           brief_fallback = mod.as_brief({
               'paper_id': 'y',
               'title': 'Fallback Paper',

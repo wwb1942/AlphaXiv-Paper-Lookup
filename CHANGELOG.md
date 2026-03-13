@@ -6,6 +6,16 @@ All notable changes to this repository will be documented in this file.
 
 - Ongoing documentation and release polish.
 
+## [v0.3.2] - 2026-03-13
+
+### Added
+
+- `--format brief-zh` for a Chinese-labeled user-facing paper brief
+
+### Changed
+
+- `brief` and `brief-zh` now share the same evidence selection logic, with different presentation language only
+
 ## [v0.3.1] - 2026-03-13
 
 ### Added
