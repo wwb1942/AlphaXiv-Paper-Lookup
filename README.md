@@ -27,6 +27,7 @@ Use `AlphaXiv-Paper-Lookup` when you want to:
 - take advantage of alphaXiv overview pages when they are available
 - fall back gracefully to the arXiv abstract when alphaXiv is thin, rate-limited, or unavailable
 - speed up paper triage in research, reading, or agent workflows
+- read batch inputs from a repo-local text file and combine them with direct CLI arguments
 
 ## When not to use
 
@@ -109,6 +110,26 @@ python3 scripts/alphaxiv_lookup.py '2603.07612' '2401.12345' --format brief-zh
 python3 scripts/alphaxiv_lookup.py '2603.07612' '2401.12345' --format json-compact
 ```
 
+### Batch lookup from a file
+
+```bash
+cat > papers.txt <<'EOF'
+# one paper per line
+2603.07612
+
+https://arxiv.org/abs/2401.12345
+EOF
+python3 scripts/alphaxiv_lookup.py --input-file papers.txt --format brief
+```
+
+### Combine `--input-file` with direct arguments
+
+```bash
+python3 scripts/alphaxiv_lookup.py --input-file papers.txt 'https://www.alphaxiv.org/overview/2501.01234' --format json-compact
+```
+
+`--input-file PATH` reads one paper id or URL per line, ignores blank lines, ignores lines starting with `#`, and participates in the same single-item vs batch rendering rules as direct positional arguments.
+
 ## Output fields
 
 For a single input, `json` returns one structured object. For batch input, `json` returns:
@@ -138,6 +159,8 @@ Each result may include:
 - `notes`
 
 For batch automation, `--format json-compact` emits one compact JSON object per line (JSONL).
+
+When the combined inputs from positional arguments and `--input-file` resolve to a single item, the CLI keeps the existing single-item output shape. When they resolve to multiple items, it reuses the existing batch output shape for each format.
 
 ## `--format brief` / `--format brief-zh`
 
@@ -170,6 +193,7 @@ Structure:
 - The JSON output now exposes `status`, `source_used`, `summary_source`, `best_summary`, `alphaxiv_status`, `arxiv_status`, `warnings`, and `errors` for easier downstream handling
 - `--format brief` / `--format brief-zh` prefer the best retrieved summary, but can still produce a useful user-facing brief from the arXiv abstract alone
 - Batch mode accepts multiple ids / URLs in one run and keeps single-item behavior backward compatible
+- `--input-file PATH` can be used more than once and can be combined with direct ids / URLs in the same command
 - AlphaXiv is treated as a shortcut, not a replacement for reading the full paper when exact details matter
 
 ## License

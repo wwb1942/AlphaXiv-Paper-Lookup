@@ -6,6 +6,17 @@ All notable changes to this repository will be documented in this file.
 
 - Ongoing documentation and release polish.
 
+## [v0.4.1] - 2026-03-13
+
+### Added
+
+- `--input-file PATH` support for reading one paper id or URL per line, with blank lines and `#` comments ignored
+
+### Changed
+
+- combined positional arguments plus `--input-file` entries now reuse the existing single-item or batch rendering behavior automatically
+- README and CI smoke coverage now document and verify file-driven batch input handling
+
 ## [v0.4.0] - 2026-03-13
 
 ### Added

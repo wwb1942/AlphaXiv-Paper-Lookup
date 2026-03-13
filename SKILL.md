@@ -11,11 +11,13 @@ Prefer alphaXiv first because it often exposes an AI-generated overview that is 
 ## Quick workflow
 
 1. Normalize the input into one or more paper ids.
+   - Accept direct positional arguments and optional file-driven inputs.
    - Accept plain ids like `2401.12345` or `1706.03762v7`
    - Accept arXiv URLs like `https://arxiv.org/abs/2401.12345`
    - Accept alphaXiv URLs like `https://www.alphaxiv.org/overview/2401.12345`
 2. Run the bundled script:
    - The script accepts one or more paper ids / URLs in a single invocation.
+   - Use `--input-file PATH` to read one id / URL per line; ignore blank lines and lines starting with `#`.
    - `python3 scripts/alphaxiv_lookup.py "<paper-or-url>" --format markdown`
    - Use `--format json` for full structured output.
    - Use `--format json-compact` when you want a smaller machine-friendly payload.

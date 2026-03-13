@@ -758,6 +758,59 @@ def render_many(results: List[Dict[str, object]], output_format: str) -> str:
     return ("\n\n" + ("=" * 80) + "\n\n").join(blocks) + "\n"
 
 
+def read_input_file(path: str) -> List[str]:
+    papers: List[str] = []
+    with open(path, "r", encoding="utf-8") as handle:
+        for raw_line in handle:
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            papers.append(line)
+    return papers
+
+
+def expand_cli_inputs(argv: List[str]) -> List[str]:
+    papers: List[str] = []
+    index = 0
+
+    while index < len(argv):
+        token = argv[index]
+
+        if token == "--":
+            papers.extend(arg.strip() for arg in argv[index + 1 :] if arg.strip())
+            break
+
+        if token == "--input-file":
+            index += 1
+            if index >= len(argv):
+                break
+            papers.extend(read_input_file(argv[index]))
+            index += 1
+            continue
+
+        if token.startswith("--input-file="):
+            papers.extend(read_input_file(token.split("=", 1)[1]))
+            index += 1
+            continue
+
+        if token in {"--format", "--timeout"}:
+            index += 2
+            continue
+
+        if token.startswith("--format=") or token.startswith("--timeout="):
+            index += 1
+            continue
+
+        if token.startswith("-"):
+            index += 1
+            continue
+
+        papers.append(token)
+        index += 1
+
+    return papers
+
+
 def lookup(raw: str, timeout: int = 25) -> Dict[str, object]:
     urls = normalize_input(raw)
     candidates = unique_preserve([urls["alphaxiv_overview_url"], urls["alphaxiv_overview_url_no_version"]])
@@ -857,16 +910,35 @@ def lookup(raw: str, timeout: int = 25) -> Dict[str, object]:
     return result
 
 
-def main() -> int:
+def main(argv: Optional[List[str]] = None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
+
     parser = argparse.ArgumentParser(description="Look up arXiv papers via alphaXiv and extract structured overview fields.")
-    parser.add_argument("paper", nargs="+", help="One or more arXiv ids, arXiv URLs, or alphaXiv URLs")
+    parser.add_argument("paper", nargs="*", help="One or more arXiv ids, arXiv URLs, or alphaXiv URLs")
+    parser.add_argument(
+        "--input-file",
+        action="append",
+        default=[],
+        metavar="PATH",
+        help="Read one paper id or URL per line from PATH. Blank lines and lines starting with # are ignored.",
+    )
     parser.add_argument("--format", choices=["json", "json-compact", "markdown", "text", "brief", "brief-zh"], default="json")
     parser.add_argument("--timeout", type=int, default=25, help="HTTP timeout in seconds (default: 25)")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
+
+    try:
+        papers = expand_cli_inputs(argv)
+    except OSError as err:
+        path = err.filename or "<unknown>"
+        parser.error(f"unable to read input file '{path}': {err.strerror or err}")
+
+    if not papers:
+        parser.error("provide at least one paper id / URL or --input-file PATH")
 
     results: List[Dict[str, object]] = []
     had_error = False
-    for paper in args.paper:
+    for paper in papers:
         try:
             results.append(lookup(paper, timeout=args.timeout))
         except urllib.error.HTTPError as err:
