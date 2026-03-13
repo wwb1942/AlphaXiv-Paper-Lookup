@@ -21,6 +21,7 @@ Prefer alphaXiv first because it often exposes an AI-generated overview that is 
    - `alphaxiv_report`
    - `alphaxiv_description`
    - `arxiv_abstract`
+   - `source_used`, `alphaxiv_status`, `arxiv_status`, `notes`
 4. Write the answer in a fixed structure:
    - Paper title
    - What problem it solves
@@ -51,7 +52,7 @@ Use this template unless the user requests a different style:
 ## Fallback rules
 
 - If alphaXiv returns only a thin description, combine it with the arXiv abstract instead of pretending the overview is complete.
-- If alphaXiv fetch fails, say so briefly and fall back to arXiv.
+- If alphaXiv fetch fails or appears rate-limited, say so briefly and fall back to arXiv.
 - If the user asks for exact equations, implementation details, or appendix-level nuance, warn that alphaXiv is only a shortcut and the PDF/source paper should still be checked.
 - Do not invent missing benchmark numbers. If a metric is absent, say it is not surfaced in the retrieved overview.
 

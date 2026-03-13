@@ -5,7 +5,6 @@ import json
 import re
 import sys
 import urllib.error
-import urllib.parse
 import urllib.request
 from typing import Dict, List, Optional, Tuple
 
@@ -19,15 +18,30 @@ def fetch(url: str, timeout: int = 25) -> str:
         return resp.read().decode(charset, errors="replace")
 
 
+def strip_html_tags(text: str) -> str:
+    return re.sub(r"<[^>]+>", "", text)
+
+
 def clean_text(text: Optional[str]) -> str:
     if not text:
         return ""
     text = html.unescape(text)
     text = text.replace("\r", "")
     text = re.sub(r"\\n", "\n", text)
+    text = strip_html_tags(text)
     text = re.sub(r"[ \t]+", " ", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
+
+
+def unique_preserve(items: List[str]) -> List[str]:
+    seen = set()
+    result = []
+    for item in items:
+        if item and item not in seen:
+            seen.add(item)
+            result.append(item)
+    return result
 
 
 def extract_meta(html_text: str, name: str) -> str:
@@ -40,6 +54,20 @@ def extract_meta(html_text: str, name: str) -> str:
         if m:
             return clean_text(m.group(1))
     return ""
+
+
+def extract_meta_many(html_text: str, name: str) -> List[str]:
+    values: List[str] = []
+    patterns = [
+        rf'<meta[^>]+name="{re.escape(name)}"[^>]+content="([^"]*)"',
+        rf'<meta[^>]+property="{re.escape(name)}"[^>]+content="([^"]*)"',
+    ]
+    for pat in patterns:
+        for value in re.findall(pat, html_text, re.I | re.S):
+            value = clean_text(value)
+            if value:
+                values.append(value)
+    return unique_preserve(values)
 
 
 def extract_title(html_text: str) -> str:
@@ -94,6 +122,20 @@ def extract_reports(html_text: str) -> List[Tuple[str, str]]:
     return reports
 
 
+def describe_http_error(err: urllib.error.HTTPError) -> str:
+    detail = f"HTTP {err.code}"
+    try:
+        body = err.read().decode("utf-8", errors="replace")
+    except Exception:
+        body = ""
+    lowered = body.lower()
+    if err.code == 429 or "http 429" in body or "rate limit" in lowered or "api error (http 429)" in lowered:
+        detail += " (rate limited upstream)"
+    elif "api error" in lowered:
+        detail += " (upstream API error)"
+    return detail
+
+
 def normalize_input(raw: str) -> Dict[str, str]:
     s = raw.strip()
     s = s.strip("<>")
@@ -110,7 +152,6 @@ def normalize_input(raw: str) -> Dict[str, str]:
             paper_id = re.sub(r"\.pdf$", "", paper_id, flags=re.I)
             return build_urls(paper_id, s)
 
-    # Plain paper id, including version suffixes and older arXiv IDs.
     if re.fullmatch(r"[A-Za-z0-9._\-/]+", s):
         return build_urls(s, raw)
 
@@ -133,42 +174,92 @@ def build_urls(paper_id: str, raw: str) -> Dict[str, str]:
     }
 
 
-def fetch_arxiv_abstract(urls: Dict[str, str]) -> Dict[str, str]:
-    candidates = [urls["arxiv_abs_url"], urls["arxiv_abs_url_no_version"]]
-    errors = []
+def fetch_arxiv_abstract(urls: Dict[str, str], timeout: int = 25) -> Dict[str, object]:
+    candidates = unique_preserve([urls["arxiv_abs_url"], urls["arxiv_abs_url_no_version"]])
+    errors: List[str] = []
     for url in candidates:
         try:
-            page = fetch(url)
-            title = extract_title(page)
+            page = fetch(url, timeout=timeout)
+            title = (
+                extract_meta(page, "citation_title")
+                or extract_meta(page, "og:title")
+                or extract_meta(page, "twitter:title")
+                or extract_title(page)
+            )
             title = re.sub(r"^\[[^\]]+\]\s*", "", title).strip()
-            m = re.search(r"Abstract:\s*(.*?)\s*(?:Comments:|Subjects:|Cite as:|$)", page, re.S | re.I)
-            abstract = clean_text(m.group(1) if m else "")
-            if title or abstract:
-                return {"title": title, "abstract": abstract, "url": url}
+            authors = ", ".join(extract_meta_many(page, "citation_author"))
+            abstract = (
+                extract_meta(page, "citation_abstract")
+                or extract_meta(page, "og:description")
+                or extract_meta(page, "twitter:description")
+            )
+            if not abstract:
+                m = re.search(r"Abstract:\s*(.*?)\s*(?:Comments:|Subjects:|Cite as:|$)", page, re.S | re.I)
+                abstract = clean_text(m.group(1) if m else "")
+            if title or abstract or authors:
+                return {
+                    "title": title,
+                    "abstract": abstract,
+                    "authors": authors,
+                    "url": url,
+                    "status": "available",
+                }
+        except urllib.error.HTTPError as e:
+            errors.append(f"{url}: {describe_http_error(e)}")
         except Exception as e:
-            errors.append(f"{url}: {e}")
-    return {"title": "", "abstract": "", "url": candidates[0], "errors": errors}
+            errors.append(f"{url}: {type(e).__name__}: {e}")
+    return {
+        "title": "",
+        "abstract": "",
+        "authors": "",
+        "url": candidates[0],
+        "status": "unavailable",
+        "errors": errors,
+    }
 
 
-def lookup(raw: str) -> Dict[str, object]:
+def infer_source_used(result: Dict[str, object]) -> str:
+    has_alpha = bool(result.get("alphaxiv_report") or result.get("alphaxiv_description"))
+    has_arxiv = bool(result.get("arxiv_abstract"))
+    if has_alpha and has_arxiv:
+        return "alphaxiv+arxiv"
+    if has_alpha:
+        return "alphaxiv"
+    if has_arxiv:
+        return "arxiv"
+    return "unknown"
+
+
+def lookup(raw: str, timeout: int = 25) -> Dict[str, object]:
     urls = normalize_input(raw)
-    candidates = [urls["alphaxiv_overview_url"], urls["alphaxiv_overview_url_no_version"]]
+    candidates = unique_preserve([urls["alphaxiv_overview_url"], urls["alphaxiv_overview_url_no_version"]])
     alpha_page = ""
     alpha_url = candidates[0]
     alpha_errors: List[str] = []
+    alpha_status = "unavailable"
+
     for url in candidates:
         try:
-            alpha_page = fetch(url)
+            alpha_page = fetch(url, timeout=timeout)
             alpha_url = url
+            alpha_status = "available"
             break
+        except urllib.error.HTTPError as e:
+            alpha_errors.append(f"{url}: {describe_http_error(e)}")
+            if e.code == 429 or "rate limited" in alpha_errors[-1]:
+                alpha_status = "rate_limited"
         except Exception as e:
-            alpha_errors.append(f"{url}: {e}")
+            alpha_errors.append(f"{url}: {type(e).__name__}: {e}")
 
     result: Dict[str, object] = {
         **urls,
         "resolved_alphaxiv_url": alpha_url,
+        "resolved_arxiv_url": urls["arxiv_abs_url"],
+        "source_used": "unknown",
         "alphaxiv_available": bool(alpha_page),
+        "alphaxiv_status": alpha_status,
         "alphaxiv_errors": alpha_errors,
+        "arxiv_status": "unknown",
         "title": "",
         "alphaxiv_description": "",
         "alphaxiv_report": "",
@@ -193,18 +284,30 @@ def lookup(raw: str) -> Dict[str, object]:
             result["alphaxiv_report"] = reports[0][1]
         else:
             result["notes"].append("AlphaXiv page fetched, but no embedded long-form report field was found.")
+            if result["alphaxiv_description"]:
+                result["alphaxiv_status"] = "thin"
     else:
-        result["notes"].append("AlphaXiv overview fetch failed; falling back to arXiv abstract.")
+        if result["alphaxiv_status"] == "rate_limited":
+            result["notes"].append("AlphaXiv appears rate-limited or upstream-unavailable; falling back to arXiv abstract.")
+        else:
+            result["notes"].append("AlphaXiv overview fetch failed; falling back to arXiv abstract.")
 
-    if not result["title"] or not result["arxiv_abstract"]:
-        arxiv = fetch_arxiv_abstract(urls)
+    if not result["title"] or not result["arxiv_abstract"] or not result["authors"]:
+        arxiv = fetch_arxiv_abstract(urls, timeout=timeout)
+        result["resolved_arxiv_url"] = arxiv.get("url", urls["arxiv_abs_url"])
+        result["arxiv_status"] = arxiv.get("status", "unknown")
         if not result["title"]:
-            result["title"] = arxiv.get("title", "")
+            result["title"] = str(arxiv.get("title", ""))
         if not result["arxiv_abstract"]:
-            result["arxiv_abstract"] = arxiv.get("abstract", "")
+            result["arxiv_abstract"] = str(arxiv.get("abstract", ""))
+        if not result["authors"]:
+            result["authors"] = str(arxiv.get("authors", ""))
         if arxiv.get("errors"):
             result["notes"].append("arXiv fallback had errors: " + "; ".join(arxiv["errors"]))
+    else:
+        result["arxiv_status"] = "available"
 
+    result["source_used"] = infer_source_used(result)
     return result
 
 
@@ -213,8 +316,11 @@ def as_markdown(result: Dict[str, object]) -> str:
     lines.append(f"# {result.get('title') or result.get('paper_id')}")
     lines.append("")
     lines.append(f"- Paper ID: `{result.get('paper_id')}`")
+    lines.append(f"- Source used: `{result.get('source_used')}`")
+    lines.append(f"- alphaXiv status: `{result.get('alphaxiv_status')}`")
+    lines.append(f"- arXiv status: `{result.get('arxiv_status')}`")
     lines.append(f"- alphaXiv: {result.get('resolved_alphaxiv_url')}")
-    lines.append(f"- arXiv: {result.get('arxiv_abs_url')}")
+    lines.append(f"- arXiv: {result.get('resolved_arxiv_url') or result.get('arxiv_abs_url')}")
     if result.get("authors"):
         lines.append(f"- Authors: {result['authors']}")
     lines.append("")
@@ -247,12 +353,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Look up an arXiv paper via alphaXiv and extract structured overview fields.")
     parser.add_argument("paper", help="arXiv id, arXiv URL, or alphaXiv URL")
     parser.add_argument("--format", choices=["json", "markdown"], default="json")
+    parser.add_argument("--timeout", type=int, default=25, help="HTTP timeout in seconds (default: 25)")
     args = parser.parse_args()
 
     try:
-        result = lookup(args.paper)
+        result = lookup(args.paper, timeout=args.timeout)
     except urllib.error.HTTPError as e:
-        print(json.dumps({"error": f"HTTP {e.code}", "detail": str(e), "input": args.paper}, ensure_ascii=False, indent=2))
+        print(json.dumps({"error": f"HTTP {e.code}", "detail": describe_http_error(e), "input": args.paper}, ensure_ascii=False, indent=2))
         return 1
     except Exception as e:
         print(json.dumps({"error": type(e).__name__, "detail": str(e), "input": args.paper}, ensure_ascii=False, indent=2))

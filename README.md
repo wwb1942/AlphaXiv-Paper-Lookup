@@ -25,7 +25,7 @@ Use `AlphaXiv-Paper-Lookup` when you want to:
 - summarize an arXiv paper quickly before opening the PDF
 - turn an arXiv id or URL into a structured paper brief
 - take advantage of alphaXiv overview pages when they are available
-- fall back gracefully to the arXiv abstract when alphaXiv is thin or unavailable
+- fall back gracefully to the arXiv abstract when alphaXiv is thin, rate-limited, or unavailable
 - speed up paper triage in research, reading, or agent workflows
 
 ## When not to use
@@ -67,6 +67,12 @@ python3 scripts/alphaxiv_lookup.py 'https://arxiv.org/abs/2603.07612' --format j
 python3 scripts/alphaxiv_lookup.py 'https://www.alphaxiv.org/overview/2603.07612' --format markdown
 ```
 
+### Adjust timeout for flaky upstreams
+
+```bash
+python3 scripts/alphaxiv_lookup.py '2603.07612' --format json --timeout 40
+```
+
 ## Output fields
 
 The JSON output may include:
@@ -76,6 +82,9 @@ The JSON output may include:
 - `arxiv_abs_url`
 - `title`
 - `authors`
+- `source_used`
+- `alphaxiv_status`
+- `arxiv_status`
 - `alphaxiv_description`
 - `alphaxiv_report`
 - `alphaxiv_report_key`
@@ -96,7 +105,8 @@ The JSON output may include:
 
 - Repository display name is `AlphaXiv-Paper-Lookup`
 - Technical skill slug remains `alphaxiv-paper-lookup`
-- If alphaXiv fetch fails, the workflow falls back to arXiv
+- If alphaXiv fetch fails or appears rate-limited, the workflow falls back to arXiv
+- The JSON output now exposes `source_used`, `alphaxiv_status`, `arxiv_status`, and `notes` for easier downstream handling
 - alphaXiv is treated as a shortcut, not a replacement for reading the full paper when exact details matter
 
 ## License
