@@ -97,23 +97,47 @@ python3 scripts/alphaxiv_lookup.py '2603.07612' --format brief-zh
 python3 scripts/alphaxiv_lookup.py '2603.07612' --format json --timeout 40
 ```
 
+### Batch lookup
+
+```bash
+python3 scripts/alphaxiv_lookup.py '2603.07612' '2401.12345' --format brief-zh
+```
+
+### Batch machine output (JSONL)
+
+```bash
+python3 scripts/alphaxiv_lookup.py '2603.07612' '2401.12345' --format json-compact
+```
+
 ## Output fields
 
-The JSON output may include:
+For a single input, `json` returns one structured object. For batch input, `json` returns:
+
+- `count`
+- `results`
+
+Each result may include:
 
 - `paper_id`
 - `resolved_alphaxiv_url`
-- `arxiv_abs_url`
+- `resolved_arxiv_url`
 - `title`
 - `authors`
+- `status`
 - `source_used`
+- `summary_source`
+- `best_summary`
 - `alphaxiv_status`
 - `arxiv_status`
 - `alphaxiv_description`
 - `alphaxiv_report`
 - `alphaxiv_report_key`
 - `arxiv_abstract`
+- `warnings`
+- `errors`
 - `notes`
+
+For batch automation, `--format json-compact` emits one compact JSON object per line (JSONL).
 
 ## `--format brief` / `--format brief-zh`
 
@@ -145,6 +169,7 @@ Structure:
 - If alphaXiv fetch fails, is rate-limited, or has only a thin overview, the workflow falls back to arXiv as needed
 - The JSON output now exposes `status`, `source_used`, `summary_source`, `best_summary`, `alphaxiv_status`, `arxiv_status`, `warnings`, and `errors` for easier downstream handling
 - `--format brief` / `--format brief-zh` prefer the best retrieved summary, but can still produce a useful user-facing brief from the arXiv abstract alone
+- Batch mode accepts multiple ids / URLs in one run and keeps single-item behavior backward compatible
 - AlphaXiv is treated as a shortcut, not a replacement for reading the full paper when exact details matter
 
 ## License

@@ -6,6 +6,19 @@ All notable changes to this repository will be documented in this file.
 
 - Ongoing documentation and release polish.
 
+## [v0.4.0] - 2026-03-13
+
+### Added
+
+- batch lookup mode by passing multiple paper ids / URLs in one command
+- batch rendering for `markdown`, `text`, `brief`, and `brief-zh`
+- batch JSON output as `{count, results}`
+- batch `json-compact` output as JSONL for automation
+
+### Changed
+
+- single-item behavior remains backward compatible while multi-item invocations now render as grouped output
+
 ## [v0.3.2] - 2026-03-13
 
 ### Added

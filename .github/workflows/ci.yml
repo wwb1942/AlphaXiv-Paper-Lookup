@@ -106,5 +106,26 @@ jobs:
           })
           assert 'Source: arXiv abstract fallback. Confidence: basic (alphaXiv: thin).' in brief_fallback
           assert 'Worth reading? Abstract-first; alphaXiv was thin, so this brief relies on arXiv.' in brief_fallback
+          batch = [
+              {
+                  'paper_id': 'a', 'title': 'Paper A', 'authors': 'X', 'status': 'ok',
+                  'source_used': 'arxiv', 'summary_source': 'arxiv_abstract', 'best_summary': 'First summary.',
+                  'alphaxiv_status': 'thin', 'arxiv_status': 'available', 'resolved_alphaxiv_url': 'u1', 'resolved_arxiv_url': 'u2',
+                  'warnings': [], 'errors': []
+              },
+              {
+                  'paper_id': 'b', 'title': 'Paper B', 'authors': 'Y', 'status': 'ok',
+                  'source_used': 'alphaxiv', 'summary_source': 'alphaxiv_report', 'best_summary': 'Second summary.',
+                  'alphaxiv_status': 'available', 'arxiv_status': 'available', 'resolved_alphaxiv_url': 'u3', 'resolved_arxiv_url': 'u4',
+                  'warnings': [], 'errors': []
+              },
+          ]
+          batch_json = mod.render_many(batch, 'json')
+          assert '"count": 2' in batch_json
+          batch_jsonl = mod.render_many(batch, 'json-compact').strip().splitlines()
+          assert len(batch_jsonl) == 2
+          batch_brief_zh = mod.render_many(batch, 'brief-zh')
+          assert '[1/2] Paper A' in batch_brief_zh
+          assert '[2/2] Paper B' in batch_brief_zh
           print('offline normalization smoke test ok')
           PY

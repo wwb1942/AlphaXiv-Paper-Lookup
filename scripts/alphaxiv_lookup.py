@@ -719,6 +719,45 @@ def compact_payload(result: Dict[str, object]) -> Dict[str, object]:
     }
 
 
+def render_one(result: Dict[str, object], output_format: str) -> str:
+    if output_format == "markdown":
+        return as_markdown(result)
+    if output_format == "text":
+        return as_text(result)
+    if output_format == "brief":
+        return as_brief(result)
+    if output_format == "brief-zh":
+        return as_brief_zh(result)
+    if output_format == "json-compact":
+        return json.dumps(compact_payload(result), ensure_ascii=False, separators=(",", ":")) + "\n"
+    return json.dumps(result, ensure_ascii=False, indent=2) + "\n"
+
+
+def render_many(results: List[Dict[str, object]], output_format: str) -> str:
+    if output_format == "json":
+        payload = {"count": len(results), "results": results}
+        return json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+    if output_format == "json-compact":
+        return "".join(json.dumps(compact_payload(r), ensure_ascii=False, separators=(",", ":")) + "\n" for r in results)
+    if output_format == "markdown":
+        return "\n---\n\n".join(as_markdown(r).rstrip() for r in results) + "\n"
+
+    blocks = []
+    for i, result in enumerate(results, 1):
+        title = str(result.get("title") or result.get("paper_id") or f"paper-{i}")
+        header = f"[{i}/{len(results)}] {title}"
+        if output_format == "text":
+            body = as_text(result).rstrip()
+        elif output_format == "brief":
+            body = as_brief(result).rstrip()
+        elif output_format == "brief-zh":
+            body = as_brief_zh(result).rstrip()
+        else:
+            body = render_one(result, output_format).rstrip()
+        blocks.append(header + "\n" + body)
+    return ("\n\n" + ("=" * 80) + "\n\n").join(blocks) + "\n"
+
+
 def lookup(raw: str, timeout: int = 25) -> Dict[str, object]:
     urls = normalize_input(raw)
     candidates = unique_preserve([urls["alphaxiv_overview_url"], urls["alphaxiv_overview_url_no_version"]])
@@ -819,39 +858,34 @@ def lookup(raw: str, timeout: int = 25) -> Dict[str, object]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Look up an arXiv paper via alphaXiv and extract structured overview fields.")
-    parser.add_argument("paper", help="arXiv id, arXiv URL, or alphaXiv URL")
+    parser = argparse.ArgumentParser(description="Look up arXiv papers via alphaXiv and extract structured overview fields.")
+    parser.add_argument("paper", nargs="+", help="One or more arXiv ids, arXiv URLs, or alphaXiv URLs")
     parser.add_argument("--format", choices=["json", "json-compact", "markdown", "text", "brief", "brief-zh"], default="json")
     parser.add_argument("--timeout", type=int, default=25, help="HTTP timeout in seconds (default: 25)")
     args = parser.parse_args()
 
-    try:
-        result = lookup(args.paper, timeout=args.timeout)
-    except urllib.error.HTTPError as err:
+    results: List[Dict[str, object]] = []
+    had_error = False
+    for paper in args.paper:
         try:
-            body = err.read().decode("utf-8", errors="replace")
-        except Exception:
-            body = ""
-        _, detail = classify_http_error(err, body)
-        print(json.dumps({"error": f"HTTP {err.code}", "detail": detail, "input": args.paper}, ensure_ascii=False, indent=2))
-        return 1
-    except Exception as err:
-        print(json.dumps({"error": type(err).__name__, "detail": str(err), "input": args.paper}, ensure_ascii=False, indent=2))
-        return 1
+            results.append(lookup(paper, timeout=args.timeout))
+        except urllib.error.HTTPError as err:
+            try:
+                body = err.read().decode("utf-8", errors="replace")
+            except Exception:
+                body = ""
+            _, detail = classify_http_error(err, body)
+            results.append({"input": paper, "status": "error", "error": f"HTTP {err.code}", "detail": detail})
+            had_error = True
+        except Exception as err:
+            results.append({"input": paper, "status": "error", "error": type(err).__name__, "detail": str(err)})
+            had_error = True
 
-    if args.format == "markdown":
-        sys.stdout.write(as_markdown(result))
-    elif args.format == "text":
-        sys.stdout.write(as_text(result))
-    elif args.format == "brief":
-        sys.stdout.write(as_brief(result))
-    elif args.format == "brief-zh":
-        sys.stdout.write(as_brief_zh(result))
-    elif args.format == "json-compact":
-        print(json.dumps(compact_payload(result), ensure_ascii=False, separators=(",", ":")))
+    if len(results) == 1:
+        sys.stdout.write(render_one(results[0], args.format))
     else:
-        print(json.dumps(result, ensure_ascii=False, indent=2))
-    return 0
+        sys.stdout.write(render_many(results, args.format))
+    return 1 if had_error else 0
 
 
 if __name__ == "__main__":
