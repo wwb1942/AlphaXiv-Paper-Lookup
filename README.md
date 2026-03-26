@@ -1,5 +1,6 @@
 # AlphaXiv-Paper-Lookup
 
+![Maintained with Codex](https://img.shields.io/badge/Maintained%20with-Codex-1f6feb)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)
 ![GitHub Release](https://img.shields.io/github/v/release/wwb1942/AlphaXiv-Paper-Lookup)
 ![CI](https://github.com/wwb1942/AlphaXiv-Paper-Lookup/actions/workflows/ci.yml/badge.svg)
